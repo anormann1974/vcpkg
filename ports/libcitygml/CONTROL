@@ -1,0 +1,4 @@
+Source: libcitygml
+Version: 2.0.9
+Description: C++ Library for CityGML Parsing and Visualization
+Build-Depends: gdal[core], xerces-c[core]

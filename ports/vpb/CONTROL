@@ -1,0 +1,4 @@
+Source: vpb
+Version: 1.1.0
+Description:  Tool for generateing paged databases from geospatial imagery and heightfields.
+Build-Depends: osg, gdal[core]

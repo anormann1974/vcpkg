@@ -1,0 +1,157 @@
+diff --git src/osgPlugins/ive/DataInputStream.cpp src/osgPlugins/ive/DataInputStream.cpp
+index d533303..96e6d36 100644
+--- a/src/osgPlugins/ive/DataInputStream.cpp
++++ b/src/osgPlugins/ive/DataInputStream.cpp
+@@ -189,22 +189,43 @@ DataInputStream::DataInputStream(std::istream* istream, const osgDB::ReaderWrite
+ 
+         if (compressionLevel>0)
+         {
+-            OSG_INFO<<"compressed ive stream"<<std::endl;
+-
+-            unsigned int maxSize = readUInt();
+-
+-            std::string data;
+-            data.reserve(maxSize);
+-
+-            if (!uncompress(*istream, data))
+-            {
+-                throwException("Error in uncompressing .ive");
+-                return;
+-            }
+-
+-            _istream = new std::stringstream(data);
+-            _owns_istream = true;
+-        }
++			OSG_INFO << "compressed ive stream" << std::endl;
++
++			unsigned int maxSize = readUInt();
++
++			std::string data;
++			data.reserve(maxSize);
++
++			if (_version >= VERSION_0046)
++			{
++				std::string compressorName = readString();
++				osgDB::BaseCompressor* compressor = osgDB::Registry::instance()->getObjectWrapperManager()->findCompressor(compressorName);
++				if (compressor)
++				{
++					if (!compressor->decompress(*istream, data))
++					{
++						throwException("Error in uncompressing .ive");
++						return;
++					}
++				}
++				else
++				{
++					throwException("Did not found needed compressor");
++					return;
++				}
++			}
++			else
++			{
++				if (!uncompress(*istream, data))
++				{
++					throwException("Error in uncompressing .ive");
++					return;
++				}
++			}
++
++			_istream = new std::stringstream(data);
++			_owns_istream = true;
++		}
+         else
+         {
+             OSG_INFO<<"uncompressed ive stream"<<std::endl;
+diff --git src/osgPlugins/ive/DataOutputStream.cpp src/osgPlugins/ive/DataOutputStream.cpp
+index dde9203..305e190 100644
+--- a/src/osgPlugins/ive/DataOutputStream.cpp
++++ b/src/osgPlugins/ive/DataOutputStream.cpp
+@@ -193,7 +193,13 @@ DataOutputStream::DataOutputStream(std::ostream * ostream, const osgDB::ReaderWr
+         _compressionLevel =  (optionsString.find("compressed")!=std::string::npos) ? 1 : 0;
+         OSG_DEBUG << "ive::DataOutputStream._compressionLevel=" << _compressionLevel << std::endl;
+ 
+-        std::string::size_type terrainErrorPos = optionsString.find("TerrainMaximumErrorToSizeRatio=");
++		if (!options->getPluginStringData("Compressor").empty())
++		{
++			_compressorName = options->getPluginStringData("Compressor");
++			_compressionLevel = 1;
++		}
++
++		std::string::size_type terrainErrorPos = optionsString.find("TerrainMaximumErrorToSizeRatio=");
+         if (terrainErrorPos!=std::string::npos)
+         {
+             std::string::size_type endOfToken = optionsString.find_first_of('=', terrainErrorPos);
+@@ -248,13 +254,35 @@ DataOutputStream::~DataOutputStream()
+ {
+     if (_compressionLevel>0)
+     {
+-        _ostream = _output_ostream;
+-
+-        std::string compressionString(_compressionStream.str());
+-        writeUInt(compressionString.size());
+-
+-        compress(*_output_ostream, compressionString);
+-    }
++		_ostream = _output_ostream;
++
++		std::string compressionString(_compressionStream.str());
++		writeUInt(compressionString.size());
++
++		if (!_compressorName.empty())
++		{
++			osgDB::BaseCompressor* compressor = osgDB::Registry::instance()->getObjectWrapperManager()->findCompressor(_compressorName);
++			if (compressor)
++			{
++				writeString(_compressorName);
++				if (!compressor->compress(*_output_ostream, compressionString))
++				{
++					// Error handling here
++				}
++			}
++			else
++			{
++				_compressorName.clear();
++				writeString("zlib");
++				compress(*_output_ostream, compressionString);
++			}
++		}
++		else
++		{
++			writeString("zlib");
++			compress(*_output_ostream, compressionString);
++		}
++	}
+ }
+ 
+ #ifdef USE_ZLIB
+diff --git src/osgPlugins/ive/DataOutputStream.h src/osgPlugins/ive/DataOutputStream.h
+index 9969079..4718330 100644
+--- a/src/osgPlugins/ive/DataOutputStream.h
++++ b/src/osgPlugins/ive/DataOutputStream.h
+@@ -208,6 +208,8 @@ public:
+     ExternalFileWrittenMap _externalFileWritten;
+ 
+     osg::ref_ptr<Exception> _exception;
++
++	std::string _compressorName;
+ };
+ 
+ }
+diff --git src/osgPlugins/ive/IveVersion.h src/osgPlugins/ive/IveVersion.h
+index 6c95109..515d903 100644
+--- a/src/osgPlugins/ive/IveVersion.h
++++ b/src/osgPlugins/ive/IveVersion.h
+@@ -54,8 +54,9 @@
+ #define VERSION_0043 43
+ #define VERSION_0044 44
+ #define VERSION_0045 45
++#define VERSION_0046 46
+ 
+-#define VERSION VERSION_0045
++#define VERSION VERSION_0046
+ 
+ /* The BYTE_SEX tag is used to check the endian
+    of the IVE file being read in.  The IVE format
+-- 
+2.9.3.windows.1
+
