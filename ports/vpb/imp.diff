@@ -1,0 +1,142 @@
+diff --git a/src/vpb/DataSet.cpp b/src/vpb/DataSet.cpp
+index 4011725..8ac3f63 100644
+--- a/src/vpb/DataSet.cpp
++++ b/src/vpb/DataSet.cpp
+@@ -285,6 +285,8 @@ bool DataSet::computeOptimumTileSystemDimensions(int& C1, int& R1)
+ 
+ CompositeDestination* DataSet::createDestinationTile(int currentLevel, int currentX, int currentY)
+ {
++	//log(osg::NOTICE, "createDestinationTile(%i,%i,%i)", currentLevel, currentX, currentY);
++
+     CompositeDestination* parent = 0;
+     GeospatialExtents extents;
+ 
+@@ -326,7 +328,8 @@ CompositeDestination* DataSet::createDestinationTile(int currentLevel, int curre
+ 
+     CompositeDestination* destinationGraph = new CompositeDestination(_intermediateCoordinateSystem.get(),extents);
+ 
+-    if (currentLevel==0) _destinationGraph = destinationGraph;
++    //if (currentLevel==0) _destinationGraph = destinationGraph;
++	if (!_destinationGraph.valid()) _destinationGraph = destinationGraph;
+ 
+     if (mapLatLongsToXYZ())
+     {
+@@ -449,7 +452,7 @@ void DataSet::createNewDestinationGraph(osg::CoordinateSystemNode* cs,
+             int i_min, i_max, j_min, j_max;
+             if (computeCoverage(sp._extents, l, i_min, j_min, i_max, j_max))
+             {
+-                // log(osg::NOTICE,"     level=%i i_min=%i i_max=%i j_min=%i j_max=%i",l, i_min, i_max, j_min, j_max);
++                 log(osg::NOTICE,"     level=%i i_min=%i i_max=%i j_min=%i j_max=%i",l, i_min, i_max, j_min, j_max);
+ 
+                 if (getGenerateSubtile())
+                 {
+@@ -463,7 +466,8 @@ void DataSet::createNewDestinationGraph(osg::CoordinateSystemNode* cs,
+                         j_lower = getSubtileY() >> delta;
+                         i_upper = i_lower + 1;
+                         j_upper = j_lower + 1;
+-                    }
++						log(osg::NOTICE, "     level=%i i_lower=%i i_upper=%i j_lower=%i j_upper=%i delta=%i", l, i_lower, i_upper, j_lower, j_upper, delta);
++					}
+                     else
+                     {
+                         // multiply 2 to the power of ((l-getSubtileLevel());
+@@ -472,7 +476,8 @@ void DataSet::createNewDestinationGraph(osg::CoordinateSystemNode* cs,
+                         j_lower = getSubtileY() * f;
+                         i_upper = i_lower + f;
+                         j_upper = j_lower + f;
+-                    }
++						log(osg::NOTICE, "     level=%i i_lower=%i i_upper=%i j_lower=%i j_upper=%i f=%i", l, i_lower, i_upper, j_lower, j_upper, f);
++					}
+ 
+                     if (i_min<i_lower) i_min = i_lower;
+                     if (i_max>i_upper) i_max = i_upper;
+@@ -3159,6 +3164,11 @@ int DataSet::_run()
+     }
+ 
+     int numProcessors = OpenThreads::GetNumberOfProcessors();
++	if (getenv("VPB_MAX_CPU_USE"))
++	{
++		numProcessors = atoi(getenv("VPB_MAX_CPU_USE"));
++	}
++
+ #if 0
+     if (numProcessors>1)
+ #endif
+diff --git a/src/vpb/MachinePool.cpp b/src/vpb/MachinePool.cpp
+index 0af5aa7..50dacde 100644
+--- a/src/vpb/MachinePool.cpp
++++ b/src/vpb/MachinePool.cpp
+@@ -705,8 +705,14 @@ bool MachinePool::write(const std::string& filename) const
+ 
+ bool MachinePool::setUpOnLocalHost()
+ {
+-    log(osg::NOTICE,"Setting up MachinePool to use all %i cores on this machine.",OpenThreads::GetNumberOfProcessors());
+-    addMachine(vpb::getLocalHostName(),osgDB::getFilePath(vpb::getCacheFileName()),std::string(),std::string(),OpenThreads::GetNumberOfProcessors());
++	int numCPUs = OpenThreads::GetNumberOfProcessors();
++	if (getenv("VPB_MAX_CPU_USE"))
++	{
++		numCPUs = atoi(getenv("VPB_MAX_CPU_USE"));
++	}
++
++    log(osg::NOTICE,"Setting up MachinePool to use all %i cores on this machine.",numCPUs);
++    addMachine(vpb::getLocalHostName(),osgDB::getFilePath(vpb::getCacheFileName()),std::string(),std::string(),numCPUs);
+     return true;
+ }
+ 
+diff --git a/src/vpb/SourceData.cpp b/src/vpb/SourceData.cpp
+index 912c411..c9e9cd4 100644
+--- a/src/vpb/SourceData.cpp
++++ b/src/vpb/SourceData.cpp
+@@ -521,10 +521,11 @@ void SourceData::readImage(DestinationData& destination)
+             }
+ 
+             bool hasRGB = _gdalDataset->GetRasterCount() >= 3;
+-            bool hasAlpha = _gdalDataset->GetRasterCount() >= 4;
++			bool hasAlpha = _gdalDataset->GetRasterCount() >= 4;
++			bool hasTranspMask = (_gdalDataset->GetRasterCount() >= 1 && _gdalDataset->GetRasterBand(1)->GetMaskFlags() == GMF_PER_DATASET);
+             bool hasColorTable = _gdalDataset->GetRasterCount() >= 1 && _gdalDataset->GetRasterBand(1)->GetColorTable();
+             bool hasGreyScale = _gdalDataset->GetRasterCount() == 1;
+-            unsigned int numSourceComponents = hasAlpha?4:3;
++			unsigned int numSourceComponents = hasAlpha ? 4 : hasTranspMask ? 4 : 3;
+ 
+             if (hasRGB || hasColorTable || hasGreyScale)
+             {
+@@ -549,7 +550,7 @@ void SourceData::readImage(DestinationData& destination)
+                     GDALRasterBand* bandRed = _gdalDataset->GetRasterBand(1);
+                     GDALRasterBand* bandGreen = _gdalDataset->GetRasterBand(2);
+                     GDALRasterBand* bandBlue = _gdalDataset->GetRasterBand(3);
+-                    GDALRasterBand* bandAlpha = hasAlpha ? _gdalDataset->GetRasterBand(4) : 0;
++                    GDALRasterBand* bandAlpha = hasAlpha ? _gdalDataset->GetRasterBand(4) : hasTranspMask ? bandRed->GetMaskBand() : nullptr;
+ 
+                     bandRed->RasterIO(GF_Read, 
+                                       windowX,_numValuesY-(windowY+windowHeight), 
+@@ -813,7 +814,7 @@ void SourceData::readImage(DestinationData& destination)
+                         {
+                             float* sourceColumnPtr_float = (float*)sourceColumnPtr;
+                             float* destinationColumnPtr_float = (float*)destinationColumnPtr;
+-                            if (hasAlpha)
++                            if (hasAlpha || hasTranspMask)
+                             {
+                                 // only copy over source pixel if its alpha value is not 0
+                                 if (sourceColumnPtr_float[3]>0.0f)
+@@ -854,7 +855,7 @@ void SourceData::readImage(DestinationData& destination)
+                         }
+                         else
+                         {
+-                            if (hasAlpha)
++                            if (hasAlpha || hasTranspMask)
+                             {
+                                 // only copy over source pixel if its alpha value is not 0
+                                 if (sourceColumnPtr[3]!=0)
+diff --git a/src/vpb/SpatialProperties.cpp b/src/vpb/SpatialProperties.cpp
+index 69bc77c..752e024 100644
+--- a/src/vpb/SpatialProperties.cpp
++++ b/src/vpb/SpatialProperties.cpp
+@@ -11,6 +11,7 @@
+  * OpenSceneGraph Public License for more details.
+ */
+ 
++#include <osgDB/fstream>
+ #include <vpb/SpatialProperties>
+ #include <vpb/BuildLog>
+ 
