@@ -3,7 +3,7 @@ include(vcpkg_common_functions)
 if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
     message("stxxl currently only supports static library linkage.")
     set(VCPKG_LIBRARY_LINKAGE static)
-    set(VCPKG_CRT_LINKAGE static)
+    set(VCPKG_CRT_LINKAGE dynamic)
 endif()
 
 vcpkg_from_github(
@@ -15,6 +15,7 @@ vcpkg_from_github(
     PATCHES
         # This patch can be removed when stxxl/stxxl/#95 is accepted
         fix-include-dir.patch
+		fix-join.patch
 )
 
 vcpkg_configure_cmake(
