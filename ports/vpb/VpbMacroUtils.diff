@@ -1,0 +1,31 @@
+--- a/CMakeModules/VpbMacroUtils.cmake
++++ b/CMakeModules/VpbMacroUtils.cmake
+@@ -13,21 +13,19 @@
+ MACRO(LINK_WITH_VARIABLES TRGTNAME)
+     FOREACH(varname ${ARGN})
+         IF(${varname}_DEBUG)
+-            TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${${varname}}" debug "${${varname}_DEBUG}")
++            IF(${varname}_RELEASE)
++                TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${${varname}_RELEASE}" debug "${${varname}_DEBUG}")
++            ELSE(${varname}_RELEASE)
++                TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${${varname}}" debug "${${varname}_DEBUG}")
++            ENDIF(${varname}_RELEASE)
+         ELSE(${varname}_DEBUG)
+-            TARGET_LINK_LIBRARIES(${TRGTNAME} "${${varname}}" )
++            TARGET_LINK_LIBRARIES(${TRGTNAME} ${${varname}} )
+         ENDIF(${varname}_DEBUG)
+     ENDFOREACH(varname)
+ ENDMACRO(LINK_WITH_VARIABLES TRGTNAME)
+ 
+ MACRO(LINK_INTERNAL TRGTNAME)
+-    IF((${CMAKE_MAJOR_VERSION} EQUAL 2 AND ${CMAKE_MINOR_VERSION} GREATER 4) OR (${CMAKE_MAJOR_VERSION} GREATER 2))
+-        TARGET_LINK_LIBRARIES(${TRGTNAME} ${ARGN})
+-    ELSE((${CMAKE_MAJOR_VERSION} EQUAL 2 AND ${CMAKE_MINOR_VERSION} GREATER 4) OR (${CMAKE_MAJOR_VERSION} GREATER 2))
+-        FOREACH(LINKLIB ${ARGN})
+-            TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${LINKLIB}" debug "${LINKLIB}${CMAKE_DEBUG_POSTFIX}")
+-        ENDFOREACH(LINKLIB)
+-    ENDIF((${CMAKE_MAJOR_VERSION} EQUAL 2 AND ${CMAKE_MINOR_VERSION} GREATER 4) OR (${CMAKE_MAJOR_VERSION} GREATER 2))
++    TARGET_LINK_LIBRARIES(${TRGTNAME} ${ARGN})
+ ENDMACRO(LINK_INTERNAL TRGTNAME)
+ 
+ MACRO(LINK_EXTERNAL TRGTNAME)

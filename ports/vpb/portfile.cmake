@@ -19,20 +19,21 @@ endif()
 vcpkg_from_github(
 	OUT_SOURCE_PATH SOURCE_PATH
 	REPO openscenegraph/VirtualPlanetBuilder
-	REF f8687478b559662b3364b26c51607710f5329e6b
-	SHA512 3fa6d38c948d379534c0d2b838f4928e9217d5b524d5935ad001f97f608431da3b4a97cf0f41781269225ad2d7268b81f552c1af03baf6f531e8c17c07bda067
+	REF 4158a64cb0983286c10a2f76ccfb4a6e8fb0e928
+	SHA512 33cde4cc7cb3bc9dff93436978d08e9360869b9203c8e117abae6854f362711029e1d26dcbebff337c0e22005027c04587bc04579d3d06c619d437312cb33bf6
 	HEAD_REF master
 )
 
 vcpkg_apply_patches(
     SOURCE_PATH ${SOURCE_PATH}
     PATCHES
-		${CMAKE_CURRENT_LIST_DIR}/imp.diff
-)
+        ${CMAKE_CURRENT_LIST_DIR}/imp.diff
+        ${CMAKE_CURRENT_LIST_DIR}/VpbMacroUtils.diff
+    )
 
 vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
-    # PREFER_NINJA # Disable this option if project cannot be built with Ninja
+    #PREFER_NINJA # Disable this option if project cannot be built with Ninja
     #OPTIONS
     # OPTIONS_RELEASE -DOPTIMIZE=1
     # OPTIONS_DEBUG -DDEBUGGABLE=1
